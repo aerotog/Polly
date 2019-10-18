@@ -12,7 +12,7 @@ namespace Polly.Registry
     /// <remarks>Uses ConcurrentDictionary to store the collection.</remarks>
     public class PolicyRegistry : IPolicyRegistry<string>
     {
-        private readonly IDictionary<string, IsPolicy> _registry = new ConcurrentDictionary<string, IsPolicy>();
+        private readonly ConcurrentDictionary<string, IsPolicy> _registry = new ConcurrentDictionary<string, IsPolicy>();
 
         /// <summary>
         /// A registry of policy policies with <see cref="System.String"/> keys.
@@ -31,7 +31,9 @@ namespace Polly.Registry
         /// <param name="registry">a dictionary containing keys and policies used for testing.</param>
         internal PolicyRegistry(IDictionary<string, IsPolicy> registry) 
         {
-            _registry = registry ?? throw new NullReferenceException(nameof(registry));
+            _registry = registry != null
+                ? new ConcurrentDictionary<string, IsPolicy>(registry)
+                : throw new NullReferenceException(nameof(registry));
         }
 
         /// <summary>
@@ -48,7 +50,16 @@ namespace Polly.Registry
         /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
         /// <exception cref="ArgumentException">A Policy with same <paramref name="key"/> already exists.</exception>
         public void Add<TPolicy>(string key, TPolicy policy) where TPolicy : IsPolicy =>
-            _registry.Add(key, policy);
+            (_registry as IDictionary<string, IsPolicy>).Add(key, policy);
+
+        /// <summary>
+        /// Adds an element with the provided key and policy to the registry.
+        /// </summary>
+        /// <param name="key">The key for the policy.</param>
+        /// <param name="policy">The policy to store in the registry.</param>
+        /// <typeparam name="TPolicy">The type of Policy.</typeparam>
+        public bool TryAdd<TPolicy>(string key, TPolicy policy) where TPolicy : IsPolicy =>
+            _registry.TryAdd(key, policy);
 
         /// <summary>
         /// Gets of sets the <see cref="IsPolicy"/> with the specified key.
@@ -88,7 +99,7 @@ namespace Polly.Registry
         public bool TryGet<TPolicy>(string key, out TPolicy policy) where TPolicy : IsPolicy
         {
             bool got = _registry.TryGetValue(key, out IsPolicy value);
-            policy = got ? (TPolicy)value : default(TPolicy);
+            policy = got ? (TPolicy)value : default;
             return got;
         }
 
@@ -114,7 +125,25 @@ namespace Polly.Registry
         /// <returns>True if the policy is successfully removed. Otherwise false.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
         public bool Remove(string key) =>
-            _registry.Remove(key);
+            (_registry as IDictionary<string, IsPolicy>).Remove(key);
+
+        /// <summary>
+        /// Removes the policy stored under the specified <paramref name="key"/> from the registry.
+        /// </summary>
+        /// <param name="key">The <paramref name="key"/> of the policy to remove.</param>
+        /// <param name="policy">
+        /// This method returns the policy associated with the specified <paramref name="key"/>, if the
+        /// key is found; otherwise null.
+        /// This parameter is passed uninitialized.
+        /// </param>
+        /// <typeparam name="TPolicy">The type of Policy.</typeparam>
+        /// <returns>True if the policy is successfully removed. Otherwise false.</returns>
+        public bool TryRemove<TPolicy>(string key, out TPolicy policy) where TPolicy : IsPolicy
+        {
+            bool got = _registry.TryRemove(key, out IsPolicy value);
+            policy = got ? (TPolicy)value : default;
+            return got;
+        }
 
         /// <summary>Returns an enumerator that iterates through the policy objects in the <see
         /// cref="PolicyRegistry"/>.</summary>
